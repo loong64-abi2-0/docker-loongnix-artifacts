@@ -1,0 +1,118 @@
+name: Debian Artifacts
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Prepare configuration
+        run: |
+          wget -qO- https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz | sudo tar -xzf - -C /usr/local/bin/ crane
+          sudo chmod +x /usr/local/bin/crane
+          sudo chown root:root /usr/local/bin/crane
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+      - name: Checkout code for debuerreotype
+        uses: actions/checkout@v5
+        with:
+          repository: multiarchstore/debuerreotype
+          ref: master
+          path: debuerreotype
+
+      - name: Checkout code for docker-debian-artifacts
+        uses: actions/checkout@v5
+        with:
+          repository: multiarchstore/docker-loongnix-artifacts
+          path: docker-loongnix-artifacts
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Build debuerreotype
+        run: |
+          cd debuerreotype
+          serial=$(date "+%Y%m%d")
+          sed -i 's@\[ -z "$SHA256" \]@# \[ -z "$SHA256" \]@g' .validate-loongnix.sh
+          ARCH=loong64 SUITE="loongnix-stable" CODENAME="loongnix-stable" TIMESTAMP="today 00:00:00" ./.validate-loongnix.sh
+          sed -i 's@riscv64@loong64 | riscv64@g' examples/oci-image.sh
+          mv validate/* validate/loongnix
+          mv validate/loongnix/loong64 validate/loongnix/archive
+          echo "${serial}" > validate/loongnix/archive/serial
+          cp -f validate/loongnix/archive/unstable/rootfs.dpkg-arch validate/loongnix/archive/dpkg-arch
+          cp -f validate/loongnix/archive/unstable/rootfs.debuerreotype-version validate/loongnix/archive/debuerreotype-version
+          cp -f validate/loongnix/archive/unstable/rootfs.debuerreotype-epoch validate/loongnix/archive/debuerreotype-epoch
+          # OCI: https://github.com/docker-library/oi-janky-groovy/blob/master/tianon/debuerreotype/arch-pipeline.groovy
+          shopt -s globstar
+          for rootfs in validate/loongnix/archive/**/rootfs.tar.xz; do
+            dir="$(dirname "$rootfs")"
+            export DEBUERREOTYPE_DIRECTORY=$(pwd)
+            ./examples/oci-image.sh "$dir/oci.tar" "$dir"
+          done
+          cd validate/loongnix
+          zip -r artifacts.zip archive
+          echo "serial=${serial}" >> $GITHUB_ENV
+
+      - name: Build docker-debian-artifacts
+        run: |
+          cd docker-debian-artifacts
+          git push origin --delete dist-loong64 || true
+          git branch -D dist-loong64 || true
+          git checkout -b dist-loong64
+          echo "loong64" > arch
+          mv ../debuerreotype/validate/loongnix/artifacts.zip .
+          sed -i "s@^wget -O artifacts.zip@# wget -O artifacts.zip@g" download.sh
+          bash -ex download.sh
+          git add .
+          git commit -m "feat: update ${{ env.serial }}"
+          git push origin dist-loong64 -f
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push loongnix-stable Images
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker-debian-artifacts/loongnix-stable
+          platforms: linux/loong64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/loongnix:25
+            ghcr.io/${{ github.repository_owner }}/loongnix:25-${{ env.serial }}
+          outputs: type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Merge loongnix-stable Images
+        run: |
+          crane index append -t ghcr.io/${{ github.repository_owner }}/loongnix:latest -m ghcr.io/${{ github.repository_owner }}/loongnix:25-${{ env.serial }} -m debian:25
+
+      - name: Build and Push loongnix-stable slim Images
+        uses: docker/build-push-action@v6
+        with:
+          context: ./docker-debian-artifacts/loongnix-stable/slim
+          platforms: linux/loong64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/loongnix:25-slim
+            ghcr.io/${{ github.repository_owner }}/loongnix:25-${{ env.serial }}
+          outputs: type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Merge loongnix-stable slim Images
+        run: |
+          crane index append -t ghcr.io/${{ github.repository_owner }}/loongnix:25-slim -m ghcr.io/${{ github.repository_owner }}/loongnix:25-${{ env.serial }} -m loongnix:25-slim
