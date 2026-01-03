@@ -36,7 +36,6 @@ jobs:
         with:
           repository: multiarchstore/docker-loongnix-artifacts
           path: docker-loongnix-artifacts
-          token: ${{ secrets.GH_TOKEN }}
 
       - name: Build debuerreotype
         run: |
