@@ -1,4 +1,4 @@
-name: Debian Artifacts
+name: Loongnix Artifacts
 
 on:
   schedule:
@@ -31,7 +31,7 @@ jobs:
           ref: master
           path: debuerreotype
 
-      - name: Checkout code for docker-debian-artifacts
+      - name: Checkout code for docker-loongnix-artifacts
         uses: actions/checkout@v5
         with:
           repository: multiarchstore/docker-loongnix-artifacts
@@ -61,9 +61,9 @@ jobs:
           zip -r artifacts.zip archive
           echo "serial=${serial}" >> $GITHUB_ENV
 
-      - name: Build docker-debian-artifacts
+      - name: Build docker-loongnix-artifacts
         run: |
-          cd docker-debian-artifacts
+          cd docker-loongnix-artifacts
           git push origin --delete dist-loong64 || true
           git branch -D dist-loong64 || true
           git checkout -b dist-loong64
@@ -85,7 +85,7 @@ jobs:
       - name: Build and Push loongnix-stable Images
         uses: docker/build-push-action@v6
         with:
-          context: ./docker-debian-artifacts/loongnix-stable
+          context: ./docker-loongnix-artifacts/loongnix-stable
           platforms: linux/loong64
           push: true
           tags: |
@@ -102,7 +102,7 @@ jobs:
       - name: Build and Push loongnix-stable slim Images
         uses: docker/build-push-action@v6
         with:
-          context: ./docker-debian-artifacts/loongnix-stable/slim
+          context: ./docker-loongnix-artifacts/loongnix-stable/slim
           platforms: linux/loong64
           push: true
           tags: |
