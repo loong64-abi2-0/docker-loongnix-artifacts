@@ -105,7 +105,7 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/loongnix:25-slim
-            ghcr.io/${{ github.repository_owner }}/loongnix:25-${{ env.serial }}
+            ghcr.io/${{ github.repository_owner }}/loongnix:25-slim-${{ env.serial }}
           outputs: type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
