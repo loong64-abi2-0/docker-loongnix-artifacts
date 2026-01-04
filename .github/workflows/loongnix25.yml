@@ -5,6 +5,9 @@ on:
     - cron: '0 0 1 * *'
   workflow_dispatch:
 
+env:
+  REPO_OWNER: "loong64"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -79,8 +82,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: la64-bot
+          password: ${{ secrets.GH_TOKEN }}
 
       - name: Build and Push loongnix-stable Images
         uses: docker/build-push-action@v6
@@ -89,9 +92,9 @@ jobs:
           platforms: linux/loong64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/loongnix:25
-            ghcr.io/${{ github.repository_owner }}/loongnix:25-${{ env.serial }}
-            ghcr.io/${{ github.repository_owner }}/loongnix:latest
+            ghcr.io/${{ env.REPO_OWNER }}/loongnix:25
+            ghcr.io/${{ env.REPO_OWNER }}/loongnix:25-${{ env.serial }}
+            ghcr.io/${{ env.REPO_OWNER }}/loongnix:latest
           outputs: type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -104,8 +107,8 @@ jobs:
           platforms: linux/loong64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/loongnix:25-slim
-            ghcr.io/${{ github.repository_owner }}/loongnix:25-slim-${{ env.serial }}
+            ghcr.io/${{ env.REPO_OWNER }}/loongnix:25-slim
+            ghcr.io/${{ env.REPO_OWNER }}/loongnix:25-slim-${{ env.serial }}
           outputs: type=image,oci-mediatypes=true,compression=zstd,compression-level=3,force-compression=true
           cache-from: type=gha
           cache-to: type=gha,mode=max
